@@ -1,0 +1,127 @@
+{
+  "project_name": "Dial For Help",
+  "design_philosophy": {
+    "identity": "The Friendly Pro",
+    "vibe": "Reliable, Immediate, Human",
+    "archetype": "Organic & Earthy (Trust) mixed with Vibrant Utility",
+    "principles": [
+      "Fusion: Utility apps don't have to be boring. Mix 'Swiss Grid' precision with 'Organic' warmth.",
+      "Emotion: Relief. The user is stressed; the design must say 'We got this'.",
+      "Content: Service first. Show the help, not just text.",
+      "Zoom: Close-ups of hands working, tools, happy faces."
+    ]
+  },
+  "typography": {
+    "font_family": {
+      "headings": "Clash Display, sans-serif",
+      "body": "Manrope, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "cdn_links": [
+      "https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap",
+      "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap"
+    ],
+    "scale": {
+      "h1": "text-5xl md:text-7xl font-semibold tracking-tight",
+      "h2": "text-3xl md:text-5xl font-medium tracking-tight",
+      "h3": "text-2xl md:text-3xl font-medium",
+      "body_lg": "text-lg md:text-xl leading-relaxed",
+      "body": "text-base leading-relaxed text-muted-foreground",
+      "caption": "text-sm font-medium tracking-wide uppercase text-muted-foreground"
+    }
+  },
+  "colors": {
+    "theme": "light",
+    "palette": {
+      "primary": {
+        "DEFAULT": "#EA580C",
+        "foreground": "#FFFFFF",
+        "description": "Burnt Orange - Urgency, Action, Warmth"
+      },
+      "secondary": {
+        "DEFAULT": "#F5F5F4",
+        "foreground": "#1C1917",
+        "description": "Warm Stone - Backgrounds, Cards"
+      },
+      "accent": {
+        "DEFAULT": "#15803D",
+        "foreground": "#FFFFFF",
+        "description": "Forest Green - Success, Trust, Completed"
+      },
+      "background": "#FAFAF9",
+      "foreground": "#0C0A09",
+      "muted": "#E7E5E4",
+      "border": "#D6D3D1",
+      "input": "#E7E5E4",
+      "ring": "#EA580C"
+    },
+    "gradients": {
+      "hero": "bg-gradient-to-br from-orange-50 via-white to-stone-100",
+      "glass": "bg-white/80 backdrop-blur-xl border border-white/20"
+    }
+  },
+  "spacing": {
+    "container": "container mx-auto px-4 md:px-8 max-w-7xl",
+    "section_gap": "py-24 md:py-32",
+    "element_gap": "gap-6 md:gap-8"
+  },
+  "layout_strategies": {
+    "landing": "Bento Grid (Mode A) - Asymmetric, story-driven.",
+    "dashboard": "High Density Grid (Mode B) - Sidebar nav, dense data tables, minimal cards.",
+    "auth": "Split Screen - Brand visual on left, clean form on right."
+  },
+  "components": {
+    "buttons": {
+      "primary": "rounded-full px-8 py-6 font-semibold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300",
+      "secondary": "rounded-full px-8 py-6 bg-white border border-stone-200 hover:bg-stone-50 transition-all",
+      "ghost": "rounded-full hover:bg-stone-100 text-stone-600"
+    },
+    "cards": {
+      "default": "bg-white rounded-2xl border border-stone-100 shadow-sm p-8 hover:shadow-md transition-all duration-300",
+      "interactive": "group relative overflow-hidden bg-white rounded-3xl border border-stone-200 p-8 hover:border-orange-200 transition-all cursor-pointer",
+      "dashboard": "bg-white rounded-xl border border-stone-200 shadow-sm p-6"
+    },
+    "inputs": {
+      "default": "h-12 bg-stone-50 border-transparent focus:border-orange-500 focus:bg-white rounded-xl transition-all"
+    }
+  },
+  "visual_enhancers": {
+    "textures": "Add a subtle 'noise' overlay opacity-5 to backgrounds to remove digital flatness.",
+    "shadows": "Use 'layered' shadows: shadow-sm for depth, shadow-xl for floating elements.",
+    "border_radius": "Use rounded-3xl for large containers, rounded-xl for inner elements (Nested Radii Rule)."
+  },
+  "image_urls": {
+    "hero_bg": "https://placehold.co/1920x1080/FAFAF9/EA580C?text=Dial+For+Help+Hero",
+    "worker_handyman": "https://placehold.co/800x800/E7E5E4/1C1917?text=Handyman",
+    "worker_cleaner": "https://placehold.co/800x800/E7E5E4/1C1917?text=Home+Cleaner",
+    "worker_electrician": "https://placehold.co/800x800/E7E5E4/1C1917?text=Electrician",
+    "happy_family": "https://placehold.co/1200x800/FAFAF9/1C1917?text=Happy+Family",
+    "admin_avatar": "https://placehold.co/200x200/EA580C/FFFFFF?text=Admin"
+  },
+  "icons": {
+    "library": "lucide-react",
+    "styles": "Stroke width 1.5px, rounded caps. Color: Text-Foreground or Primary."
+  },
+  "universal_guidelines": [
+    "Do NOT use standard HTML select/input. Use Shadcn Select/Input.",
+    "Do NOT use 'Inter' for headings. Use Clash Display.",
+    "Do NOT center text by default. Use grid layouts.",
+    "Do NOT use generic gradients. Use solid colors + texture.",
+    "ALWAYS add data-testid to interactive elements.",
+    "ALWAYS use Sonner for toasts."
+  ],
+  "instructions_to_main_agent": {
+    "setup": [
+      "Install dependencies: lucide-react, framer-motion, clsx, tailwind-merge, @radix-ui/react-*, sonner",
+      "Configure Tailwind theme with the provided colors and font families."
+    ],
+    "implementation_order": [
+      "1. Setup Theme (Fonts, Colors, Global CSS)",
+      "2. Build UI Primitives (Buttons, Inputs, Cards) customized to guidelines",
+      "3. Layout Landing Page (Hero, Services Grid, CTA)",
+      "4. Build Booking Flow (Wizard Step 1-3)",
+      "5. Build Worker/Admin Auth Pages",
+      "6. Build Admin Dashboard (Sidebar, Data Tables, Stats)"
+    ]
+  }
+}
