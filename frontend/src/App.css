@@ -1,34 +1,23 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+.noise-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.2;
+  background-image: radial-gradient(rgba(12, 10, 9, 0.09) 0.6px, transparent 0.6px);
+  background-size: 3px 3px;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+.gradient-wash {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(circle at top right, rgba(234, 88, 12, 0.14), transparent 40%),
+    radial-gradient(circle at bottom left, rgba(21, 128, 61, 0.12), transparent 35%),
+    #fafaf9;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
-}
-
-.App-link {
-    color: #61dafb;
-}
-
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+.text-balance {
+  text-wrap: balance;
 }
