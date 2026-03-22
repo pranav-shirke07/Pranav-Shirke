@@ -69,6 +69,13 @@
   - `GET /api/admin/subscriptions`
   - `GET /api/admin/bookings/{booking_id}/suggest-workers`
 - Applied provided SendGrid + admin notify configuration. Twilio SMS remains pending user-side Twilio credentials.
+- Added phase-4 customer account and services discovery features:
+  - User authentication (email/password): register, login, profile update, logout
+  - User profile/settings page with notification preferences and booking history
+  - Expanded service catalog (15+ services) across booking/worker/admin filters
+  - Dedicated **All Services** page with search + category filtering
+  - Homepage quick service search component
+  - Assignment-contact notification enhancement: when admin assigns worker, system attempts to send worker contact to customer via SMS + email
 
 ## Prioritized Backlog
 ### P0 (Next Critical)
@@ -76,6 +83,7 @@
 - Add admin password change flow and optional second admin creation.
 - Add webhook verification path for Razorpay events (`payment.captured`) as additional server-side reconciliation.
 - Add subscription renewal reminder dispatch flow (scheduled emails/SMS for plans due within 7 days).
+- Add optional Google social login (user requested mixed preference: email + Google) once Google OAuth credentials are provided.
 
 ### P1 (Important)
 - Add booking filters/search in admin dashboard (date/service/status).
