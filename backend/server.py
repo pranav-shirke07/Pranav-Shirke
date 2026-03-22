@@ -372,7 +372,8 @@ def _send_sms_message(phone_number: str, message: str) -> NotificationLog:
                 timeout=15,
             )
             response_data = response.json() if response.content else {}
-            success = bool(response_data.get("return", False)) or response.status_code < 300
+            success = bool(response_data.get("return", False))
+            error_text = response_data.get("message") or response_data.get("error") or ""
             if success:
                 return NotificationLog(
                     channel="sms",
@@ -385,7 +386,7 @@ def _send_sms_message(phone_number: str, message: str) -> NotificationLog:
                 channel="sms",
                 recipient=phone_number,
                 success=False,
-                detail=f"Fast2SMS error {response.status_code}",
+                detail=f"Fast2SMS error {response.status_code}: {error_text}",
                 timestamp=now_iso(),
             )
         except Exception as exc:  # noqa: BLE001

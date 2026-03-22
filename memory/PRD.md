@@ -76,6 +76,12 @@
   - Dedicated **All Services** page with search + category filtering
   - Homepage quick service search component
   - Assignment-contact notification enhancement: when admin assigns worker, system attempts to send worker contact to customer via SMS + email
+- Added phase-5 notifications enhancement:
+  - Replaced Twilio-first SMS path with **Fast2SMS** integration (with Twilio fallback retained)
+  - Added customer **Notifications Inbox** (`/account/notifications`) with mark-as-read support
+  - Added user notification APIs and DB persistence for booking/status/assignment/subscription events
+  - Added admin action to dispatch renewal reminders for due subscriptions
+  - Tightened Fast2SMS success parsing so HTTP 200 with business-level failure is logged as failed (accurate delivery status)
 
 ## Prioritized Backlog
 ### P0 (Next Critical)
@@ -84,6 +90,7 @@
 - Add webhook verification path for Razorpay events (`payment.captured`) as additional server-side reconciliation.
 - Add subscription renewal reminder dispatch flow (scheduled emails/SMS for plans due within 7 days).
 - Add optional Google social login (user requested mixed preference: email + Google) once Google OAuth credentials are provided.
+- Add automated scheduler (daily cron) for renewal reminders instead of manual dispatch button.
 
 ### P1 (Important)
 - Add booking filters/search in admin dashboard (date/service/status).
