@@ -1,10 +1,13 @@
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Bolt, Brush, Clock3, ShieldCheck, Wrench } from "lucide-react";
 import { Link } from "react-router-dom";
 import { APP_IMAGES } from "@/constants/images";
+import { ALL_SERVICES } from "@/constants/services";
 import { SectionHeader } from "@/components/SectionHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 const serviceCards = [
   { title: "Plumbing", icon: Wrench, image: APP_IMAGES.plumber },
@@ -19,6 +22,12 @@ const reasonCards = [
 ];
 
 export default function HomePage() {
+  const [query, setQuery] = useState("");
+
+  const quickResults = useMemo(() => {
+    return ALL_SERVICES.filter((item) => item.name.toLowerCase().includes(query.toLowerCase())).slice(0, 6);
+  }, [query]);
+
   return (
     <div className="space-y-24 md:space-y-32" data-testid="home-page">
       <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
@@ -32,6 +41,11 @@ export default function HomePage() {
           <div className="flex flex-wrap gap-3">
             <Link to="/book" data-testid="hero-book-now-link">
               <Button className="rounded-full px-8 py-6 text-base font-semibold">Book Help Now</Button>
+            </Link>
+            <Link to="/services" data-testid="hero-view-services-link">
+              <Button variant="outline" className="rounded-full px-8 py-6 text-base font-semibold">
+                View All Services
+              </Button>
             </Link>
             <Link to="/worker-signup" data-testid="hero-join-workers-link">
               <Button variant="outline" className="rounded-full px-8 py-6 text-base font-semibold">
@@ -102,6 +116,34 @@ export default function HomePage() {
             );
           })}
         </div>
+
+        <Card className="rounded-3xl border-stone-200 bg-white">
+          <CardContent className="space-y-4 p-6">
+            <p className="text-sm font-medium" data-testid="home-service-search-label">Quick service search</p>
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search services like AC Repair, Pest Control..."
+              data-testid="home-service-search-input"
+            />
+            <div className="flex flex-wrap gap-2" data-testid="home-service-search-results">
+              {(query ? quickResults : ALL_SERVICES.slice(0, 6)).map((service) => (
+                <span
+                  key={service.name}
+                  className="rounded-full bg-stone-100 px-3 py-1 text-sm"
+                  data-testid={`home-service-tag-${service.name.toLowerCase().replace(/\s+/g, "-")}`}
+                >
+                  {service.name}
+                </span>
+              ))}
+              {query && quickResults.length === 0 && (
+                <span className="text-sm text-muted-foreground" data-testid="home-service-search-empty">
+                  No matching service found.
+                </span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-3" data-testid="why-choose-us-section">

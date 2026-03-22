@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { ALL_SERVICES } from "@/constants/services";
 import { paymentsApi, publicApi } from "@/services/api";
 import { loadRazorpayScript, openRazorpayCheckout } from "@/services/razorpay";
 
-const services = ["Plumbing", "Electrical", "Cleaning", "General Handyman", "Other"];
+const services = [...ALL_SERVICES.map((item) => item.name), "Other"];
 
 const initialForm = {
   full_name: "",

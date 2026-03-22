@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 const navItems = [
   { to: "/", label: "Home", icon: Home },
   { to: "/book", label: "Book Help", icon: PhoneCall },
+  { to: "/services", label: "Services", icon: Shield },
   { to: "/track-booking", label: "Track Booking", icon: Shield },
   { to: "/worker-signup", label: "Worker Signup", icon: UserPlus2 },
   { to: "/contact", label: "Contact", icon: PhoneCall },
@@ -48,6 +49,11 @@ export const MainLayout = () => {
               <Button className="rounded-full px-5 py-2" variant="outline">
                 <Shield className="mr-2 h-4 w-4" />
                 Admin Login
+              </Button>
+            </NavLink>
+            <NavLink to="/account/auth" data-testid="nav-link-user-account">
+              <Button className="rounded-full px-5 py-2" variant="outline">
+                User Account
               </Button>
             </NavLink>
           </nav>

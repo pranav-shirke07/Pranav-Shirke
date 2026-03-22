@@ -3,6 +3,7 @@ import axios from "axios";
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API_BASE = `${BACKEND_URL}/api`;
 const ADMIN_TOKEN_KEY = "dial-for-help-admin-token";
+const USER_TOKEN_KEY = "dial-for-help-user-token";
 
 const client = axios.create({
   baseURL: API_BASE,
@@ -19,9 +20,25 @@ export const clearAdminToken = () => {
   localStorage.removeItem(ADMIN_TOKEN_KEY);
 };
 
+export const getUserToken = () => localStorage.getItem(USER_TOKEN_KEY);
+
+export const setUserToken = (token) => {
+  localStorage.setItem(USER_TOKEN_KEY, token);
+};
+
+export const clearUserToken = () => {
+  localStorage.removeItem(USER_TOKEN_KEY);
+};
+
 const withAdminHeaders = () => ({
   headers: {
     Authorization: `Bearer ${getAdminToken()}`,
+  },
+});
+
+const withUserHeaders = () => ({
+  headers: {
+    Authorization: `Bearer ${getUserToken()}`,
   },
 });
 
@@ -94,6 +111,33 @@ export const adminApi = {
       payload,
       withAdminHeaders(),
     );
+    return response.data;
+  },
+};
+
+export const userApi = {
+  register: async (payload) => {
+    const response = await client.post("/users/register", payload);
+    return response.data;
+  },
+  login: async (payload) => {
+    const response = await client.post("/users/login", payload);
+    return response.data;
+  },
+  logout: async () => {
+    const response = await client.post("/users/logout", {}, withUserHeaders());
+    return response.data;
+  },
+  getProfile: async () => {
+    const response = await client.get("/users/profile", withUserHeaders());
+    return response.data;
+  },
+  updateProfile: async (payload) => {
+    const response = await client.put("/users/profile", payload, withUserHeaders());
+    return response.data;
+  },
+  getMyBookings: async () => {
+    const response = await client.get("/users/bookings", withUserHeaders());
     return response.data;
   },
 };

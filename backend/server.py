@@ -71,7 +71,22 @@ class BookingCreate(BaseModel):
     phone: str = Field(min_length=7, max_length=20)
     email: EmailStr
     service_type: Literal[
-        "Plumbing", "Electrical", "Cleaning", "General Handyman", "Other"
+        "Plumbing",
+        "Electrical",
+        "Cleaning",
+        "General Handyman",
+        "AC Repair",
+        "Carpentry",
+        "Painting",
+        "Pest Control",
+        "Appliance Repair",
+        "Deep Cleaning",
+        "Salon at Home",
+        "RO Service",
+        "CCTV Installation",
+        "Movers & Packers",
+        "Gardening",
+        "Other",
     ]
     address: str = Field(min_length=5, max_length=220)
     preferred_date: str
@@ -95,7 +110,23 @@ class WorkerSignupCreate(BaseModel):
     full_name: str = Field(min_length=2, max_length=80)
     phone: str = Field(min_length=7, max_length=20)
     email: EmailStr
-    skill: Literal["Plumbing", "Electrical", "Cleaning", "General Handyman"]
+    skill: Literal[
+        "Plumbing",
+        "Electrical",
+        "Cleaning",
+        "General Handyman",
+        "AC Repair",
+        "Carpentry",
+        "Painting",
+        "Pest Control",
+        "Appliance Repair",
+        "Deep Cleaning",
+        "Salon at Home",
+        "RO Service",
+        "CCTV Installation",
+        "Movers & Packers",
+        "Gardening",
+    ]
     city: str = Field(min_length=2, max_length=80)
     years_experience: int = Field(ge=0, le=60)
     availability: Literal["Full-time", "Part-time", "Weekends"]
@@ -123,6 +154,47 @@ class ContactResponse(ContactCreate):
 
     id: str
     created_at: str
+
+
+class UserRegisterRequest(BaseModel):
+    full_name: str = Field(min_length=2, max_length=80)
+    email: EmailStr
+    password: str = Field(min_length=6, max_length=128)
+    phone: str = Field(min_length=7, max_length=20)
+    address: str = Field(default="", max_length=220)
+    notify_email: bool = True
+    notify_sms: bool = True
+
+
+class UserLoginRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=6, max_length=128)
+
+
+class UserProfileResponse(BaseModel):
+    id: str
+    full_name: str
+    email: EmailStr
+    phone: str
+    address: str
+    notify_email: bool
+    notify_sms: bool
+    created_at: str
+    updated_at: str
+
+
+class UserProfileUpdateRequest(BaseModel):
+    full_name: Optional[str] = Field(default=None, min_length=2, max_length=80)
+    phone: Optional[str] = Field(default=None, min_length=7, max_length=20)
+    address: Optional[str] = Field(default=None, max_length=220)
+    notify_email: Optional[bool] = None
+    notify_sms: Optional[bool] = None
+
+
+class UserAuthResponse(BaseModel):
+    token: str
+    expires_at: str
+    user: UserProfileResponse
 
 
 class AdminLoginRequest(BaseModel):
@@ -246,6 +318,20 @@ def _coerce_booking_doc(document: dict) -> dict:
 def _coerce_worker_doc(document: dict) -> dict:
     document.setdefault("subscription_expires_at", None)
     return document
+
+
+def _coerce_user_doc(document: dict) -> dict:
+    return {
+        "id": document["id"],
+        "full_name": document.get("full_name", ""),
+        "email": document.get("email", ""),
+        "phone": document.get("phone", ""),
+        "address": document.get("address", ""),
+        "notify_email": document.get("notify_email", True),
+        "notify_sms": document.get("notify_sms", True),
+        "created_at": document.get("created_at", now_iso()),
+        "updated_at": document.get("updated_at", now_iso()),
+    }
 
 
 def _send_sms_message(phone_number: str, message: str) -> NotificationLog:
@@ -529,6 +615,32 @@ async def _get_admin_session(authorization: Optional[str] = Header(default=None)
     return session
 
 
+async def _get_user_session(authorization: Optional[str] = Header(default=None)) -> dict:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing user token",
+        )
+
+    token = authorization.replace("Bearer ", "", 1).strip()
+    session = await db.user_sessions.find_one({"token": token}, {"_id": 0})
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user token",
+        )
+
+    expires_at = datetime.fromisoformat(session["expires_at"])
+    if expires_at <= datetime.now(timezone.utc):
+        await db.user_sessions.delete_one({"token": token})
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User token expired",
+        )
+
+    return session
+
+
 @api_router.get("/")
 async def root():
     return {
@@ -775,6 +887,120 @@ async def create_contact(payload: ContactCreate):
     return contact
 
 
+@api_router.post("/users/register", response_model=UserAuthResponse)
+async def user_register(payload: UserRegisterRequest):
+    existing = await db.users.find_one({"email": normalize_email(str(payload.email))}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=409, detail="User email already exists")
+
+    timestamp = now_iso()
+    user_doc = {
+        "id": str(uuid.uuid4()),
+        "full_name": payload.full_name,
+        "email": normalize_email(str(payload.email)),
+        "password_hash": pwd_context.hash(payload.password),
+        "phone": normalize_phone(payload.phone),
+        "address": payload.address,
+        "notify_email": payload.notify_email,
+        "notify_sms": payload.notify_sms,
+        "created_at": timestamp,
+        "updated_at": timestamp,
+    }
+    await db.users.insert_one(dict(user_doc))
+
+    token = str(uuid.uuid4())
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+    await db.user_sessions.insert_one(
+        {
+            "id": str(uuid.uuid4()),
+            "token": token,
+            "user_id": user_doc["id"],
+            "user_email": user_doc["email"],
+            "expires_at": expires_at,
+            "created_at": now_iso(),
+        }
+    )
+
+    return UserAuthResponse(
+        token=token,
+        expires_at=expires_at,
+        user=UserProfileResponse(**_coerce_user_doc(user_doc)),
+    )
+
+
+@api_router.post("/users/login", response_model=UserAuthResponse)
+async def user_login(payload: UserLoginRequest):
+    user = await db.users.find_one({"email": normalize_email(str(payload.email))}, {"_id": 0})
+    if not user or not pwd_context.verify(payload.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid user credentials")
+
+    token = str(uuid.uuid4())
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+    await db.user_sessions.insert_one(
+        {
+            "id": str(uuid.uuid4()),
+            "token": token,
+            "user_id": user["id"],
+            "user_email": user["email"],
+            "expires_at": expires_at,
+            "created_at": now_iso(),
+        }
+    )
+
+    return UserAuthResponse(
+        token=token,
+        expires_at=expires_at,
+        user=UserProfileResponse(**_coerce_user_doc(user)),
+    )
+
+
+@api_router.post("/users/logout")
+async def user_logout(session: dict = Depends(_get_user_session)):
+    await db.user_sessions.delete_one({"token": session["token"]})
+    return {"message": "User logged out"}
+
+
+@api_router.get("/users/profile", response_model=UserProfileResponse)
+async def get_user_profile(session: dict = Depends(_get_user_session)):
+    user = await db.users.find_one({"id": session["user_id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return UserProfileResponse(**_coerce_user_doc(user))
+
+
+@api_router.put("/users/profile", response_model=UserProfileResponse)
+async def update_user_profile(
+    payload: UserProfileUpdateRequest,
+    session: dict = Depends(_get_user_session),
+):
+    update_fields = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not update_fields:
+        user = await db.users.find_one({"id": session["user_id"]}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return UserProfileResponse(**_coerce_user_doc(user))
+
+    if "phone" in update_fields:
+        update_fields["phone"] = normalize_phone(update_fields["phone"])
+    update_fields["updated_at"] = now_iso()
+
+    await db.users.update_one({"id": session["user_id"]}, {"$set": update_fields})
+    user = await db.users.find_one({"id": session["user_id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return UserProfileResponse(**_coerce_user_doc(user))
+
+
+@api_router.get("/users/bookings", response_model=List[BookingResponse])
+async def get_user_bookings(session: dict = Depends(_get_user_session)):
+    bookings = await db.bookings.find(
+        {"email": normalize_email(session["user_email"])},
+        {"_id": 0},
+    ).sort("created_at", -1).to_list(500)
+    return [BookingResponse(**_coerce_booking_doc(item)) for item in bookings]
+
+
 @api_router.post("/admin/login", response_model=AdminLoginResponse)
 async def admin_login(payload: AdminLoginRequest):
     admin = await db.admins.find_one({"email": payload.email}, {"_id": 0})
@@ -913,6 +1139,39 @@ async def update_booking_status(
 
     updated_doc = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
     booking = BookingResponse(**_coerce_booking_doc(updated_doc))
+
+    if payload.status == "assigned" and payload.assigned_worker_id:
+        worker = await db.workers.find_one({"id": payload.assigned_worker_id}, {"_id": 0})
+        if worker:
+            assignment_message = (
+                f"Your service request is assigned to {worker.get('full_name', 'our worker')} "
+                f"(Phone: {worker.get('phone', 'N/A')})."
+            )
+            assignment_email_subject = "Dial For Help: Worker Assigned"
+            assignment_email_body = (
+                f"Booking ID: {booking.id}\n"
+                f"Service: {booking.service_type}\n"
+                f"Assigned Worker: {worker.get('full_name', 'N/A')}\n"
+                f"Worker Phone: {worker.get('phone', 'N/A')}\n"
+            )
+
+            assignment_logs = await asyncio.gather(
+                asyncio.to_thread(_send_sms_message, booking.phone, assignment_message),
+                asyncio.to_thread(
+                    _send_email_message,
+                    booking.email,
+                    assignment_email_subject,
+                    assignment_email_body,
+                ),
+            )
+
+            existing_logs = booking.notification_log
+            merged_logs = existing_logs + assignment_logs
+            await db.bookings.update_one(
+                {"id": booking_id},
+                {"$set": {"notification_log": [item.model_dump() for item in merged_logs]}},
+            )
+            booking.notification_log = merged_logs
 
     event_name = f"Status changed to {payload.status}"
     notification_log = await _notify_booking_event(booking, event_name)

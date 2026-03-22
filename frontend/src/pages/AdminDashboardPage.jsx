@@ -8,7 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ALL_SERVICES } from "@/constants/services";
 import { adminApi, clearAdminToken, getAdminToken } from "@/services/api";
+
+const serviceOptions = [...ALL_SERVICES.map((item) => item.name), "Other"];
 
 const statusTone = {
   pending: "bg-amber-100 text-amber-700",
@@ -208,7 +211,7 @@ export default function AdminDashboardPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Services</SelectItem>
-                {["Plumbing", "Electrical", "Cleaning", "General Handyman", "Other"].map((service) => (
+                {serviceOptions.map((service) => (
                   <SelectItem key={service} value={service}>
                     {service}
                   </SelectItem>

@@ -1,0 +1,17 @@
+export const ALL_SERVICES = [
+  { name: "Plumbing", category: "Repairs", description: "Leak fixing, taps, pipelines." },
+  { name: "Electrical", category: "Repairs", description: "Wiring, switches, fittings." },
+  { name: "Cleaning", category: "Home Care", description: "Regular home cleaning support." },
+  { name: "General Handyman", category: "Repairs", description: "Quick fixes for daily issues." },
+  { name: "AC Repair", category: "Appliances", description: "Installation, cooling, servicing." },
+  { name: "Carpentry", category: "Repairs", description: "Furniture repair and assembly." },
+  { name: "Painting", category: "Home Care", description: "Wall painting and touch-ups." },
+  { name: "Pest Control", category: "Home Care", description: "Safe anti-pest treatment." },
+  { name: "Appliance Repair", category: "Appliances", description: "Washing machine, fridge, microwave." },
+  { name: "Deep Cleaning", category: "Home Care", description: "Detailed seasonal cleaning." },
+  { name: "Salon at Home", category: "Personal Care", description: "Beauty services at doorstep." },
+  { name: "RO Service", category: "Appliances", description: "Filter replacement and maintenance." },
+  { name: "CCTV Installation", category: "Security", description: "Camera setup and checks." },
+  { name: "Movers & Packers", category: "Logistics", description: "Relocation and transport support." },
+  { name: "Gardening", category: "Outdoor", description: "Plant care and lawn setup." },
+];

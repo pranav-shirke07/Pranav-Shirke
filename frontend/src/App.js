@@ -8,6 +8,9 @@ import BookingPage from "@/pages/BookingPage";
 import WorkerSignupPage from "@/pages/WorkerSignupPage";
 import ContactPage from "@/pages/ContactPage";
 import TrackBookingPage from "@/pages/TrackBookingPage";
+import AllServicesPage from "@/pages/AllServicesPage";
+import UserAuthPage from "@/pages/UserAuthPage";
+import UserProfilePage from "@/pages/UserProfilePage";
 import AdminLoginPage from "@/pages/AdminLoginPage";
 import AdminDashboardPage from "@/pages/AdminDashboardPage";
 
@@ -20,6 +23,9 @@ function App() {
             <Route index element={<HomePage />} />
             <Route path="book" element={<BookingPage />} />
             <Route path="track-booking" element={<TrackBookingPage />} />
+            <Route path="services" element={<AllServicesPage />} />
+            <Route path="account/auth" element={<UserAuthPage />} />
+            <Route path="account/profile" element={<UserProfilePage />} />
             <Route path="worker-signup" element={<WorkerSignupPage />} />
             <Route path="contact" element={<ContactPage />} />
           </Route>

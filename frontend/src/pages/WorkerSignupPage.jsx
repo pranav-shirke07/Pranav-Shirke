@@ -6,8 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { ALL_SERVICES } from "@/constants/services";
 import { paymentsApi, publicApi } from "@/services/api";
 import { loadRazorpayScript, openRazorpayCheckout } from "@/services/razorpay";
+
+const workerSkills = ALL_SERVICES.map((item) => item.name).filter((item) => item !== "Other");
 
 const initialWorker = {
   full_name: "",
@@ -211,7 +214,7 @@ export default function WorkerSignupPage() {
                   <SelectValue placeholder="Choose skill" />
                 </SelectTrigger>
                 <SelectContent>
-                  {["Plumbing", "Electrical", "Cleaning", "General Handyman"].map((skill) => (
+                  {workerSkills.map((skill) => (
                     <SelectItem key={skill} value={skill} data-testid={`worker-skill-option-${skill.toLowerCase().replace(/\s+/g, "-")}`}>
                       {skill}
                     </SelectItem>
