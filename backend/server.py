@@ -5,6 +5,8 @@ import hmac
 import logging
 import os
 from pathlib import Path
+import subprocess
+import sys
 from typing import List, Literal, Optional
 import uuid
 
@@ -210,6 +212,33 @@ class UserNotificationItem(BaseModel):
 class RenewalDispatchResponse(BaseModel):
     reminded_count: int
     message: str
+
+
+class AdminDemoActionResponse(BaseModel):
+    message: str
+    deleted_records: int
+
+
+class MonthlyAnalyticsItem(BaseModel):
+    month: str
+    bookings: int
+    revenue_inr: int
+    renewals_due: int
+
+
+class AdminAnalyticsResponse(BaseModel):
+    monthly: List[MonthlyAnalyticsItem]
+    assignment_completion_rate: float
+    active_subscriptions: int
+    total_revenue_inr: int
+
+
+class DemoLoginItem(BaseModel):
+    role: str
+    full_name: str
+    email: str
+    phone: str
+    login_password: Optional[str] = None
 
 
 class AdminLoginRequest(BaseModel):
@@ -623,6 +652,52 @@ def _days_remaining(iso_datetime: str) -> int:
 
     remaining = expiry - datetime.now(timezone.utc)
     return max(0, remaining.days)
+
+
+def _parse_iso(iso_value: str) -> Optional[datetime]:
+    try:
+        return datetime.fromisoformat(iso_value)
+    except ValueError:
+        return None
+
+
+def _month_bucket(dt: datetime) -> str:
+    return dt.strftime("%Y-%m")
+
+
+def _last_month_buckets(count: int = 6) -> List[str]:
+    current = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    buckets = []
+    for offset in range(count - 1, -1, -1):
+        year = current.year
+        month = current.month - offset
+        while month <= 0:
+            month += 12
+            year -= 1
+        buckets.append(f"{year:04d}-{month:02d}")
+    return buckets
+
+
+async def _reset_demo_data() -> int:
+    demo_email_filter = {"$regex": "@dialhelp\\.demo$", "$options": "i"}
+
+    user_docs = await db.users.find({"email": demo_email_filter}, {"_id": 0, "email": 1}).to_list(5000)
+    worker_docs = await db.workers.find({"email": demo_email_filter}, {"_id": 0, "email": 1}).to_list(5000)
+
+    demo_emails = list({doc["email"] for doc in user_docs + worker_docs if doc.get("email")})
+    deleted_records = 0
+
+    if demo_emails:
+        deleted_records += (await db.user_sessions.delete_many({"user_email": {"$in": demo_emails}})).deleted_count
+        deleted_records += (await db.users.delete_many({"email": {"$in": demo_emails}})).deleted_count
+        deleted_records += (await db.workers.delete_many({"email": {"$in": demo_emails}})).deleted_count
+        deleted_records += (await db.bookings.delete_many({"email": {"$in": demo_emails}})).deleted_count
+        deleted_records += (await db.contacts.delete_many({"email": {"$in": demo_emails}})).deleted_count
+        deleted_records += (await db.user_notifications.delete_many({"email": {"$in": demo_emails}})).deleted_count
+        deleted_records += (await db.subscriptions.delete_many({"email": {"$in": demo_emails}})).deleted_count
+        deleted_records += (await db.payment_orders.delete_many({"email": {"$in": demo_emails}})).deleted_count
+
+    return deleted_records
 
 
 async def _get_active_subscription(phone: str, email: str, plan_type: Literal["user", "worker"]) -> Optional[dict]:
@@ -1209,6 +1284,162 @@ async def admin_subscriptions(_: dict = Depends(_get_admin_session)):
         )
 
     return items
+
+
+@api_router.get("/admin/analytics", response_model=AdminAnalyticsResponse)
+async def admin_analytics(_: dict = Depends(_get_admin_session)):
+    month_buckets = _last_month_buckets(6)
+    monthly_map = {
+        bucket: {"bookings": 0, "revenue_inr": 0, "renewals_due": 0}
+        for bucket in month_buckets
+    }
+
+    bookings = await db.bookings.find({}, {"_id": 0, "created_at": 1, "status": 1}).to_list(5000)
+    subscriptions = await db.subscriptions.find(
+        {},
+        {"_id": 0, "started_at": 1, "expires_at": 1, "amount_inr": 1, "status": 1},
+    ).to_list(5000)
+
+    completed_count = 0
+    assigned_or_completed_count = 0
+
+    for booking in bookings:
+        created_dt = _parse_iso(booking.get("created_at", ""))
+        if created_dt:
+            bucket = _month_bucket(created_dt)
+            if bucket in monthly_map:
+                monthly_map[bucket]["bookings"] += 1
+
+        if booking.get("status") in {"assigned", "completed"}:
+            assigned_or_completed_count += 1
+        if booking.get("status") == "completed":
+            completed_count += 1
+
+    active_subscriptions = 0
+    total_revenue = 0
+    now = datetime.now(timezone.utc)
+    for subscription in subscriptions:
+        started_dt = _parse_iso(subscription.get("started_at", ""))
+        expires_dt = _parse_iso(subscription.get("expires_at", ""))
+        amount = int(subscription.get("amount_inr", 0) or 0)
+
+        if started_dt:
+            bucket = _month_bucket(started_dt)
+            if bucket in monthly_map:
+                monthly_map[bucket]["revenue_inr"] += amount
+
+        if expires_dt:
+            bucket = _month_bucket(expires_dt)
+            if bucket in monthly_map:
+                monthly_map[bucket]["renewals_due"] += 1
+
+        if subscription.get("status") == "active" and expires_dt and expires_dt > now:
+            active_subscriptions += 1
+            total_revenue += amount
+
+    assignment_completion_rate = (
+        (completed_count / assigned_or_completed_count) * 100
+        if assigned_or_completed_count
+        else 0.0
+    )
+
+    monthly_items = [
+        MonthlyAnalyticsItem(
+            month=bucket,
+            bookings=monthly_map[bucket]["bookings"],
+            revenue_inr=monthly_map[bucket]["revenue_inr"],
+            renewals_due=monthly_map[bucket]["renewals_due"],
+        )
+        for bucket in month_buckets
+    ]
+
+    return AdminAnalyticsResponse(
+        monthly=monthly_items,
+        assignment_completion_rate=round(assignment_completion_rate, 2),
+        active_subscriptions=active_subscriptions,
+        total_revenue_inr=total_revenue,
+    )
+
+
+@api_router.get("/admin/demo-logins", response_model=List[DemoLoginItem])
+async def admin_demo_logins(_: dict = Depends(_get_admin_session)):
+    demo_email_filter = {"$regex": "@dialhelp\\.demo$", "$options": "i"}
+    users = await db.users.find(
+        {"email": demo_email_filter},
+        {"_id": 0, "full_name": 1, "email": 1, "phone": 1},
+    ).sort("created_at", -1).to_list(30)
+    workers = await db.workers.find(
+        {"email": demo_email_filter},
+        {"_id": 0, "full_name": 1, "email": 1, "phone": 1},
+    ).sort("joined_at", -1).to_list(30)
+
+    items = [
+        DemoLoginItem(
+            role="admin",
+            full_name="Default Admin",
+            email=DEFAULT_ADMIN_EMAIL,
+            phone="N/A",
+            login_password=DEFAULT_ADMIN_PASSWORD,
+        )
+    ]
+
+    for user in users[:12]:
+        items.append(
+            DemoLoginItem(
+                role="user",
+                full_name=user.get("full_name", "Demo User"),
+                email=user.get("email", ""),
+                phone=user.get("phone", ""),
+                login_password="User@123",
+            )
+        )
+
+    for worker in workers[:12]:
+        items.append(
+            DemoLoginItem(
+                role="worker-reference",
+                full_name=worker.get("full_name", "Demo Worker"),
+                email=worker.get("email", ""),
+                phone=worker.get("phone", ""),
+                login_password=None,
+            )
+        )
+
+    return items
+
+
+@api_router.post("/admin/demo/reset", response_model=AdminDemoActionResponse)
+async def admin_reset_demo_data(_: dict = Depends(_get_admin_session)):
+    deleted_records = await _reset_demo_data()
+    return AdminDemoActionResponse(
+        message="Demo records cleared",
+        deleted_records=deleted_records,
+    )
+
+
+@api_router.post("/admin/demo/reset-reseed", response_model=AdminDemoActionResponse)
+async def admin_reset_reseed_demo(_: dict = Depends(_get_admin_session)):
+    deleted_records = await _reset_demo_data()
+
+    try:
+        run_result = subprocess.run(
+            [sys.executable, "/app/scripts/seed_demo_data.py"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        message = f"Reset + reseed completed. {run_result.stdout.strip()}"
+    except subprocess.CalledProcessError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Reseed failed: {exc.stderr.strip() or 'Unknown error'}",
+        ) from exc
+
+    return AdminDemoActionResponse(
+        message=message,
+        deleted_records=deleted_records,
+    )
 
 
 @api_router.post("/admin/subscriptions/dispatch-renewal-reminders", response_model=RenewalDispatchResponse)

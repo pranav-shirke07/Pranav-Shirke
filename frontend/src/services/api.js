@@ -101,6 +101,22 @@ export const adminApi = {
     const response = await client.get("/admin/subscriptions", withAdminHeaders());
     return response.data;
   },
+  getAnalytics: async () => {
+    const response = await client.get("/admin/analytics", withAdminHeaders());
+    return response.data;
+  },
+  getDemoLogins: async () => {
+    const response = await client.get("/admin/demo-logins", withAdminHeaders());
+    return response.data;
+  },
+  resetDemoData: async () => {
+    const response = await client.post("/admin/demo/reset", {}, withAdminHeaders());
+    return response.data;
+  },
+  resetReseedDemoData: async () => {
+    const response = await client.post("/admin/demo/reset-reseed", {}, withAdminHeaders());
+    return response.data;
+  },
   getWorkerSuggestions: async (bookingId) => {
     const response = await client.get(`/admin/bookings/${bookingId}/suggest-workers`, withAdminHeaders());
     return response.data;

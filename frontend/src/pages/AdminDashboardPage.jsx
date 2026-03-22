@@ -23,9 +23,12 @@ export default function AdminDashboardPage() {
   const navigate = useNavigate();
   const [overview, setOverview] = useState(null);
   const [subscriptions, setSubscriptions] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [demoLogins, setDemoLogins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingMap, setSavingMap] = useState({});
   const [suggestingMap, setSuggestingMap] = useState({});
+  const [utilityLoading, setUtilityLoading] = useState(false);
   const [drafts, setDrafts] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -59,12 +62,16 @@ export default function AdminDashboardPage() {
     }
 
     try {
-      const [overviewData, subscriptionData] = await Promise.all([
+      const [overviewData, subscriptionData, analyticsData, demoLoginsData] = await Promise.all([
         adminApi.getOverview(),
         adminApi.getSubscriptions(),
+        adminApi.getAnalytics(),
+        adminApi.getDemoLogins(),
       ]);
       setOverview(overviewData);
       setSubscriptions(subscriptionData);
+      setAnalytics(analyticsData);
+      setDemoLogins(demoLoginsData);
 
       const nextDrafts = {};
       overviewData.bookings.forEach((booking) => {
@@ -154,6 +161,32 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const resetDemoData = async () => {
+    setUtilityLoading(true);
+    try {
+      const result = await adminApi.resetDemoData();
+      toast.success(`Demo cleared: ${result.deleted_records} records removed`);
+      await loadOverview();
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || "Could not reset demo data.");
+    } finally {
+      setUtilityLoading(false);
+    }
+  };
+
+  const resetReseedDemoData = async () => {
+    setUtilityLoading(true);
+    try {
+      const result = await adminApi.resetReseedDemoData();
+      toast.success(`Reset + reseed completed. Removed: ${result.deleted_records}`);
+      await loadOverview();
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || "Could not reset + reseed demo.");
+    } finally {
+      setUtilityLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-stone-100 p-8" data-testid="admin-dashboard-loading">
@@ -170,9 +203,26 @@ export default function AdminDashboardPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Admin Dashboard</p>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl leading-tight">Dial For Help Operations</h1>
           </div>
-          <Button variant="outline" onClick={logout} data-testid="admin-logout-button">
-            Logout
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={resetDemoData}
+              disabled={utilityLoading}
+              data-testid="admin-reset-demo-button"
+            >
+              {utilityLoading ? "Working..." : "Reset Demo"}
+            </Button>
+            <Button
+              onClick={resetReseedDemoData}
+              disabled={utilityLoading}
+              data-testid="admin-reset-reseed-demo-button"
+            >
+              {utilityLoading ? "Working..." : "Reset + Reseed"}
+            </Button>
+            <Button variant="outline" onClick={logout} data-testid="admin-logout-button">
+              Logout
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-5">
@@ -194,6 +244,39 @@ export default function AdminDashboardPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <Card className="rounded-2xl border-stone-200 bg-white" data-testid="admin-analytics-summary-card">
+            <CardContent className="space-y-3 p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Advanced Analytics</p>
+              <p className="text-sm" data-testid="analytics-assignment-completion-rate">
+                Assignment Completion Rate: {analytics?.assignment_completion_rate ?? 0}%
+              </p>
+              <p className="text-sm" data-testid="analytics-active-subscriptions">
+                Active Subscriptions: {analytics?.active_subscriptions ?? 0}
+              </p>
+              <p className="text-sm" data-testid="analytics-total-revenue">
+                Total Subscription Revenue: ₹{analytics?.total_revenue_inr ?? 0}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-stone-200 bg-white" data-testid="admin-monthly-analytics-card">
+            <CardContent className="space-y-2 p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Monthly Trend (Last 6)</p>
+              <div className="space-y-2">
+                {(analytics?.monthly || []).map((item) => (
+                  <div key={item.month} className="grid grid-cols-4 gap-2 rounded-lg bg-stone-50 px-3 py-2 text-xs">
+                    <span data-testid={`analytics-month-${item.month}`}>{item.month}</span>
+                    <span data-testid={`analytics-month-bookings-${item.month}`}>B: {item.bookings}</span>
+                    <span data-testid={`analytics-month-revenue-${item.month}`}>₹: {item.revenue_inr}</span>
+                    <span data-testid={`analytics-month-renewals-${item.month}`}>R: {item.renewals_due}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <Card className="rounded-2xl border-stone-200 bg-white">
@@ -235,6 +318,7 @@ export default function AdminDashboardPage() {
           <TabsList>
             <TabsTrigger value="bookings" data-testid="tab-bookings">Bookings</TabsTrigger>
             <TabsTrigger value="subscriptions" data-testid="tab-subscriptions">Subscriptions</TabsTrigger>
+            <TabsTrigger value="demo-logins" data-testid="tab-demo-logins">Demo Logins</TabsTrigger>
             <TabsTrigger value="workers" data-testid="tab-workers">Workers</TabsTrigger>
             <TabsTrigger value="contacts" data-testid="tab-contacts">Contacts</TabsTrigger>
           </TabsList>
@@ -399,6 +483,42 @@ export default function AdminDashboardPage() {
                       <TableRow>
                         <TableCell colSpan={5} className="py-8 text-center text-muted-foreground" data-testid="subscriptions-empty-message">
                           No subscriptions yet.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="demo-logins">
+            <Card className="rounded-2xl border-stone-200 bg-white">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Password</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {demoLogins.map((entry, index) => (
+                      <TableRow key={`${entry.role}-${entry.email}-${index}`} data-testid={`demo-login-row-${index}`}>
+                        <TableCell data-testid={`demo-login-role-${index}`}>{entry.role}</TableCell>
+                        <TableCell data-testid={`demo-login-name-${index}`}>{entry.full_name}</TableCell>
+                        <TableCell data-testid={`demo-login-email-${index}`}>{entry.email}</TableCell>
+                        <TableCell data-testid={`demo-login-phone-${index}`}>{entry.phone}</TableCell>
+                        <TableCell data-testid={`demo-login-password-${index}`}>{entry.login_password || "N/A"}</TableCell>
+                      </TableRow>
+                    ))}
+                    {demoLogins.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="py-8 text-center text-muted-foreground" data-testid="demo-logins-empty-message">
+                          No demo login records found.
                         </TableCell>
                       </TableRow>
                     )}
