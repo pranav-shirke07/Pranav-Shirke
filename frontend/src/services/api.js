@@ -40,6 +40,29 @@ export const publicApi = {
   },
 };
 
+export const paymentsApi = {
+  getUserSubscriptionStatus: async ({ phone, email }) => {
+    const response = await client.get("/subscriptions/user-status", {
+      params: { phone, email },
+    });
+    return response.data;
+  },
+  getWorkerSubscriptionStatus: async ({ phone, email }) => {
+    const response = await client.get("/subscriptions/worker-status", {
+      params: { phone, email },
+    });
+    return response.data;
+  },
+  createOrder: async (payload) => {
+    const response = await client.post("/payments/create-order", payload);
+    return response.data;
+  },
+  verifyOrder: async (payload) => {
+    const response = await client.post("/payments/verify", payload);
+    return response.data;
+  },
+};
+
 export const adminApi = {
   login: async (payload) => {
     const response = await client.post("/admin/login", payload);

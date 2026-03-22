@@ -1,5 +1,7 @@
 import os
 import uuid
+import hashlib
+import hmac
 
 import pytest
 import requests
@@ -7,6 +9,7 @@ import requests
 
 # Core public and admin API flow tests for Dial For Help.
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL")
+RAZORPAY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET")
 
 
 @pytest.fixture(scope="session")
@@ -21,6 +24,47 @@ def api_client():
     session = requests.Session()
     session.headers.update({"Content-Type": "application/json"})
     return session
+
+
+def _activate_worker_subscription(api_client, api_base_url, worker_payload):
+    if not RAZORPAY_SECRET:
+        pytest.skip("RAZORPAY_KEY_SECRET is not set")
+
+    order_response = api_client.post(
+        f"{api_base_url}/api/payments/create-order",
+        json={
+            "plan_type": "worker",
+            "name": worker_payload["full_name"],
+            "email": worker_payload["email"],
+            "phone": worker_payload["phone"],
+        },
+        timeout=30,
+    )
+    assert order_response.status_code == 200
+    order_data = order_response.json()
+
+    payment_id = f"pay_{uuid.uuid4().hex[:14]}"
+    signature_payload = f"{order_data['order_id']}|{payment_id}".encode("utf-8")
+    signature = hmac.new(
+        RAZORPAY_SECRET.encode("utf-8"),
+        signature_payload,
+        hashlib.sha256,
+    ).hexdigest()
+
+    verify_response = api_client.post(
+        f"{api_base_url}/api/payments/verify",
+        json={
+            "plan_type": "worker",
+            "razorpay_order_id": order_data["order_id"],
+            "razorpay_payment_id": payment_id,
+            "razorpay_signature": signature,
+            "subscriber_name": worker_payload["full_name"],
+            "email": worker_payload["email"],
+            "phone": worker_payload["phone"],
+        },
+        timeout=30,
+    )
+    assert verify_response.status_code == 200
 
 
 @pytest.fixture
@@ -87,6 +131,8 @@ def test_create_worker_signup_and_verify_overview(api_client, api_base_url, admi
         "availability": "Part-time",
         "about": "TEST electrician profile",
     }
+
+    _activate_worker_subscription(api_client, api_base_url, payload)
 
     create_response = api_client.post(f"{api_base_url}/api/workers/signup", json=payload, timeout=20)
     assert create_response.status_code == 200
@@ -176,6 +222,8 @@ def test_update_booking_status_and_verify_in_overview(api_client, api_base_url, 
     create_booking = api_client.post(f"{api_base_url}/api/bookings", json=booking_payload, timeout=30)
     assert create_booking.status_code == 200
     booking = create_booking.json()
+
+    _activate_worker_subscription(api_client, api_base_url, worker_payload)
 
     create_worker = api_client.post(f"{api_base_url}/api/workers/signup", json=worker_payload, timeout=20)
     assert create_worker.status_code == 200

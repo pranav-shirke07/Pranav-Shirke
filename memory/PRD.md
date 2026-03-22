@@ -9,6 +9,11 @@
 - Proper admin auth using email/password
 - MongoDB persistence with booking status tracking (`pending`, `assigned`, `completed`)
 - Notifications on booking events via Twilio SMS + SendGrid Email to customer + admin
+- Subscription policy update:
+  - User gets first 2 services free; then ₹99/year mandatory
+  - Free usage counted by **phone + email** identity
+  - Worker subscription ₹199/year mandatory **before signup submit**
+  - Razorpay Test mode integration
 
 ## Architecture Decisions
 - **Frontend:** React + React Router + Shadcn UI + Tailwind + Framer Motion
@@ -48,11 +53,18 @@
 - Fixed booking submit-button validation edge case on step 3.
 - Addressed intermittent ResizeObserver overlay by suppressing known benign runtime noise at app bootstrap.
 - Completed self-tests + testing-agent round; core flows verified.
+- Added annual subscription system with Razorpay integration:
+  - New APIs: user/worker subscription status, create-order, verify-payment
+  - User booking gate after 2 free bookings (₹99/year)
+  - Worker signup gate requiring active ₹199/year plan before submission
+  - Frontend Razorpay checkout wiring on booking and worker signup flows
+  - Stored provided Razorpay test credentials in backend env for activation
 
 ## Prioritized Backlog
 ### P0 (Next Critical)
 - Wire production Twilio + SendGrid credentials and validate real delivery to both customer and admin.
 - Add admin password change flow and optional second admin creation.
+- Add webhook verification path for Razorpay events (`payment.captured`) as additional server-side reconciliation.
 
 ### P1 (Important)
 - Add booking filters/search in admin dashboard (date/service/status).

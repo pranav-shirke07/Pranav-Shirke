@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { publicApi } from "@/services/api";
+import { paymentsApi, publicApi } from "@/services/api";
+import { loadRazorpayScript, openRazorpayCheckout } from "@/services/razorpay";
 
 const services = ["Plumbing", "Electrical", "Cleaning", "General Handyman", "Other"];
 
@@ -25,7 +26,10 @@ export default function BookingPage() {
   const [form, setForm] = useState(initialForm);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
   const [confirmationId, setConfirmationId] = useState("");
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
+  const [subscriptionPrompt, setSubscriptionPrompt] = useState("");
 
   const isStepOneValid = Boolean(form.full_name && form.phone && form.email);
   const isStepTwoValid = Boolean(form.service_type && form.address && form.preferred_date);
@@ -34,19 +38,111 @@ export default function BookingPage() {
 
   const onChange = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
-  const submitBooking = async () => {
+  const fetchUserSubscriptionStatus = async () => {
+    if (!isStepOneValid) return;
+    const response = await paymentsApi.getUserSubscriptionStatus({
+      phone: form.phone,
+      email: form.email,
+    });
+    setSubscriptionStatus(response);
+  };
+
+  const submitBooking = async (retryAfterPayment = false) => {
     setLoading(true);
     try {
       const payload = { ...form, notes: form.notes || "" };
       const response = await publicApi.createBooking(payload);
       setConfirmationId(response.id);
+      setSubscriptionPrompt("");
       setForm(initialForm);
+      setSubscriptionStatus(null);
       setStep(1);
       toast.success("Booking submitted successfully");
     } catch (error) {
-      toast.error(error?.response?.data?.detail || "Booking failed. Please retry.");
+      const detail = error?.response?.data?.detail;
+      if (error?.response?.status === 402 && detail?.code === "USER_SUBSCRIPTION_REQUIRED") {
+        setSubscriptionPrompt(detail?.message || "Subscription required for booking");
+        if (!retryAfterPayment) {
+          toast.error(detail?.message || "Please subscribe to continue");
+        }
+      } else {
+        toast.error(detail || "Booking failed. Please retry.");
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleNext = async () => {
+    if (step === 1) {
+      try {
+        await fetchUserSubscriptionStatus();
+      } catch {
+        toast.error("Could not fetch free-usage status right now.");
+      }
+    }
+    setStep((prev) => prev + 1);
+  };
+
+  const startUserSubscriptionPayment = async () => {
+    if (!isStepOneValid) {
+      toast.error("Please complete name, phone and email first.");
+      return;
+    }
+
+    setPaymentLoading(true);
+    try {
+      const sdkLoaded = await loadRazorpayScript();
+      if (!sdkLoaded) {
+        toast.error("Could not load Razorpay checkout.");
+        return;
+      }
+
+      const order = await paymentsApi.createOrder({
+        plan_type: "user",
+        name: form.full_name,
+        email: form.email,
+        phone: form.phone,
+      });
+
+      const paymentResult = await openRazorpayCheckout({
+        key: order.key_id,
+        amount: order.amount,
+        currency: order.currency,
+        name: "Dial For Help",
+        description: `User Annual Plan ₹${order.amount_inr}`,
+        order_id: order.order_id,
+        prefill: {
+          name: form.full_name,
+          email: form.email,
+          contact: form.phone,
+        },
+        notes: {
+          plan_type: "user",
+        },
+        theme: {
+          color: "#ea580c",
+        },
+      });
+
+      await paymentsApi.verifyOrder({
+        plan_type: "user",
+        razorpay_order_id: paymentResult.razorpay_order_id,
+        razorpay_payment_id: paymentResult.razorpay_payment_id,
+        razorpay_signature: paymentResult.razorpay_signature,
+        subscriber_name: form.full_name,
+        email: form.email,
+        phone: form.phone,
+      });
+
+      await fetchUserSubscriptionStatus();
+      setSubscriptionPrompt("");
+      toast.success("User subscription activated for 1 year.");
+      await submitBooking(true);
+    } catch (error) {
+      toast.error(error?.message || error?.response?.data?.detail || "Subscription payment failed.");
+    } finally {
+      setPaymentLoading(false);
     }
   };
 
@@ -79,6 +175,18 @@ export default function BookingPage() {
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" type="email" value={form.email} onChange={(e) => onChange("email", e.target.value)} data-testid="booking-email-input" />
               </div>
+
+              {subscriptionStatus && (
+                <Card className="rounded-2xl border-stone-200 bg-stone-50" data-testid="booking-user-subscription-status-card">
+                  <CardContent className="space-y-1 p-4 text-sm">
+                    <p data-testid="booking-free-remaining-text">Free services remaining: {subscriptionStatus.free_remaining}</p>
+                    <p data-testid="booking-bookings-used-text">Bookings used: {subscriptionStatus.bookings_used}</p>
+                    <p data-testid="booking-subscription-active-text">
+                      Subscription active: {subscriptionStatus.has_active_subscription ? "Yes" : "No"}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
             </motion.div>
           )}
 
@@ -148,7 +256,7 @@ export default function BookingPage() {
             </Button>
 
             {step < 3 ? (
-              <Button type="button" disabled={!canGoNext} onClick={() => setStep((prev) => prev + 1)} data-testid="booking-next-button">
+              <Button type="button" disabled={!canGoNext} onClick={handleNext} data-testid="booking-next-button">
                 Continue
               </Button>
             ) : (
@@ -159,6 +267,24 @@ export default function BookingPage() {
           </div>
         </CardContent>
       </Card>
+
+      {subscriptionPrompt && (
+        <Card className="rounded-2xl border-primary/30 bg-primary/10" data-testid="booking-subscription-required-card">
+          <CardContent className="space-y-4 p-5">
+            <p className="text-sm text-primary" data-testid="booking-subscription-required-text">
+              {subscriptionPrompt}
+            </p>
+            <Button
+              type="button"
+              onClick={startUserSubscriptionPayment}
+              disabled={paymentLoading}
+              data-testid="booking-subscription-pay-button"
+            >
+              {paymentLoading ? "Opening Razorpay..." : "Pay ₹99/year and Continue"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {confirmationId && (
         <Card className="rounded-2xl border-accent/30 bg-accent/10">
