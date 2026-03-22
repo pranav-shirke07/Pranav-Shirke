@@ -59,12 +59,23 @@
   - Worker signup gate requiring active ₹199/year plan before submission
   - Frontend Razorpay checkout wiring on booking and worker signup flows
   - Stored provided Razorpay test credentials in backend env for activation
+- Added phase-3 operational features:
+  - **Admin subscription management** tab with active plans, expiry dates, and renewal-due flags (<=7 days)
+  - **Public Track Booking page** (`/track-booking`) with booking ID lookup
+  - **Admin booking search + filters** (status/service/text)
+  - **Worker auto-assignment suggestion** action using backend scoring endpoint
+- Added/validated API endpoints:
+  - `GET /api/bookings/track/{booking_id}`
+  - `GET /api/admin/subscriptions`
+  - `GET /api/admin/bookings/{booking_id}/suggest-workers`
+- Applied provided SendGrid + admin notify configuration. Twilio SMS remains pending user-side Twilio credentials.
 
 ## Prioritized Backlog
 ### P0 (Next Critical)
 - Wire production Twilio + SendGrid credentials and validate real delivery to both customer and admin.
 - Add admin password change flow and optional second admin creation.
 - Add webhook verification path for Razorpay events (`payment.captured`) as additional server-side reconciliation.
+- Add subscription renewal reminder dispatch flow (scheduled emails/SMS for plans due within 7 days).
 
 ### P1 (Important)
 - Add booking filters/search in admin dashboard (date/service/status).
