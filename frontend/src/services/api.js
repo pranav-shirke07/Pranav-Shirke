@@ -105,6 +105,10 @@ export const adminApi = {
     const response = await client.get(`/admin/bookings/${bookingId}/suggest-workers`, withAdminHeaders());
     return response.data;
   },
+  dispatchRenewalReminders: async () => {
+    const response = await client.post("/admin/subscriptions/dispatch-renewal-reminders", {}, withAdminHeaders());
+    return response.data;
+  },
   updateBookingStatus: async (bookingId, payload) => {
     const response = await client.patch(
       `/admin/bookings/${bookingId}/status`,
@@ -138,6 +142,14 @@ export const userApi = {
   },
   getMyBookings: async () => {
     const response = await client.get("/users/bookings", withUserHeaders());
+    return response.data;
+  },
+  getNotifications: async () => {
+    const response = await client.get("/users/notifications", withUserHeaders());
+    return response.data;
+  },
+  markNotificationRead: async (notificationId) => {
+    const response = await client.patch(`/users/notifications/${notificationId}/read`, {}, withUserHeaders());
     return response.data;
   },
 };

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "@/components/ui/sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -88,6 +88,10 @@ export default function UserProfilePage() {
           Logout
         </Button>
       </div>
+
+      <Link to="/account/notifications" data-testid="user-profile-notifications-link">
+        <Button variant="outline">Open Notifications Inbox</Button>
+      </Link>
 
       <Card className="rounded-3xl border-stone-200 bg-white">
         <CardContent className="grid gap-4 p-6 md:grid-cols-2">

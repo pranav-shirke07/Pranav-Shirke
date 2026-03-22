@@ -11,6 +11,7 @@ import TrackBookingPage from "@/pages/TrackBookingPage";
 import AllServicesPage from "@/pages/AllServicesPage";
 import UserAuthPage from "@/pages/UserAuthPage";
 import UserProfilePage from "@/pages/UserProfilePage";
+import UserNotificationsPage from "@/pages/UserNotificationsPage";
 import AdminLoginPage from "@/pages/AdminLoginPage";
 import AdminDashboardPage from "@/pages/AdminDashboardPage";
 
@@ -26,6 +27,7 @@ function App() {
             <Route path="services" element={<AllServicesPage />} />
             <Route path="account/auth" element={<UserAuthPage />} />
             <Route path="account/profile" element={<UserProfilePage />} />
+            <Route path="account/notifications" element={<UserNotificationsPage />} />
             <Route path="worker-signup" element={<WorkerSignupPage />} />
             <Route path="contact" element={<ContactPage />} />
           </Route>

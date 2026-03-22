@@ -197,6 +197,21 @@ class UserAuthResponse(BaseModel):
     user: UserProfileResponse
 
 
+class UserNotificationItem(BaseModel):
+    id: str
+    title: str
+    message: str
+    category: str
+    booking_id: Optional[str] = None
+    read: bool
+    created_at: str
+
+
+class RenewalDispatchResponse(BaseModel):
+    reminded_count: int
+    message: str
+
+
 class AdminLoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6)
@@ -335,6 +350,53 @@ def _coerce_user_doc(document: dict) -> dict:
 
 
 def _send_sms_message(phone_number: str, message: str) -> NotificationLog:
+    fast2sms_api_key = os.environ.get("FAST2SMS_API_KEY")
+    if fast2sms_api_key:
+        sender_id = os.environ.get("FAST2SMS_SENDER_ID", "FSTSMS")
+        cleaned_number = normalize_phone(phone_number).replace("+", "")
+        try:
+            response = requests.post(
+                "https://www.fast2sms.com/dev/bulkV2",
+                headers={
+                    "authorization": fast2sms_api_key,
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Cache-Control": "no-cache",
+                },
+                data={
+                    "route": "q",
+                    "sender_id": sender_id,
+                    "message": message,
+                    "language": "english",
+                    "numbers": cleaned_number,
+                },
+                timeout=15,
+            )
+            response_data = response.json() if response.content else {}
+            success = bool(response_data.get("return", False)) or response.status_code < 300
+            if success:
+                return NotificationLog(
+                    channel="sms",
+                    recipient=phone_number,
+                    success=True,
+                    detail="SMS sent via Fast2SMS",
+                    timestamp=now_iso(),
+                )
+            return NotificationLog(
+                channel="sms",
+                recipient=phone_number,
+                success=False,
+                detail=f"Fast2SMS error {response.status_code}",
+                timestamp=now_iso(),
+            )
+        except Exception as exc:  # noqa: BLE001
+            return NotificationLog(
+                channel="sms",
+                recipient=phone_number,
+                success=False,
+                detail=f"Fast2SMS request failed: {str(exc)}",
+                timestamp=now_iso(),
+            )
+
     account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
     auth_token = os.environ.get("TWILIO_AUTH_TOKEN")
     from_number = os.environ.get("TWILIO_PHONE_NUMBER")
@@ -379,6 +441,28 @@ def _send_sms_message(phone_number: str, message: str) -> NotificationLog:
             detail=f"Twilio request failed: {str(exc)}",
             timestamp=now_iso(),
         )
+
+
+async def _create_user_notification(
+    email: str,
+    phone: str,
+    title: str,
+    message: str,
+    category: str,
+    booking_id: Optional[str] = None,
+) -> None:
+    notification_doc = {
+        "id": str(uuid.uuid4()),
+        "email": normalize_email(email),
+        "phone": normalize_phone(phone),
+        "title": title,
+        "message": message,
+        "category": category,
+        "booking_id": booking_id,
+        "read": False,
+        "created_at": now_iso(),
+    }
+    await db.user_notifications.insert_one(notification_doc)
 
 
 def _send_email_message(recipient: str, subject: str, body_text: str) -> NotificationLog:
@@ -809,6 +893,15 @@ async def create_booking(payload: BookingCreate):
     booking_doc = booking.model_dump()
     await db.bookings.insert_one(dict(booking_doc))
 
+    await _create_user_notification(
+        email=str(payload.email),
+        phone=payload.phone,
+        title="Booking received",
+        message=f"Your booking for {payload.service_type} is received and currently pending.",
+        category="booking",
+        booking_id=booking.id,
+    )
+
     notification_log = await _notify_booking_event(booking, "Booking received")
     if notification_log:
         updated_at = now_iso()
@@ -1001,6 +1094,40 @@ async def get_user_bookings(session: dict = Depends(_get_user_session)):
     return [BookingResponse(**_coerce_booking_doc(item)) for item in bookings]
 
 
+@api_router.get("/users/notifications", response_model=List[UserNotificationItem])
+async def get_user_notifications(session: dict = Depends(_get_user_session)):
+    notifications = await db.user_notifications.find(
+        {"email": normalize_email(session["user_email"])},
+        {"_id": 0},
+    ).sort("created_at", -1).to_list(500)
+    return [UserNotificationItem(**item) for item in notifications]
+
+
+@api_router.patch("/users/notifications/{notification_id}/read", response_model=UserNotificationItem)
+async def mark_user_notification_read(
+    notification_id: str,
+    session: dict = Depends(_get_user_session),
+):
+    await db.user_notifications.update_one(
+        {
+            "id": notification_id,
+            "email": normalize_email(session["user_email"]),
+        },
+        {"$set": {"read": True}},
+    )
+    notification = await db.user_notifications.find_one(
+        {
+            "id": notification_id,
+            "email": normalize_email(session["user_email"]),
+        },
+        {"_id": 0},
+    )
+    if not notification:
+        raise HTTPException(status_code=404, detail="Notification not found")
+
+    return UserNotificationItem(**notification)
+
+
 @api_router.post("/admin/login", response_model=AdminLoginResponse)
 async def admin_login(payload: AdminLoginRequest):
     admin = await db.admins.find_one({"email": payload.email}, {"_id": 0})
@@ -1081,6 +1208,56 @@ async def admin_subscriptions(_: dict = Depends(_get_admin_session)):
         )
 
     return items
+
+
+@api_router.post("/admin/subscriptions/dispatch-renewal-reminders", response_model=RenewalDispatchResponse)
+async def dispatch_renewal_reminders(_: dict = Depends(_get_admin_session)):
+    subscriptions = await db.subscriptions.find(
+        {"status": "active"},
+        {"_id": 0},
+    ).to_list(1000)
+
+    now = datetime.now(timezone.utc)
+    threshold = now + timedelta(days=7)
+    reminded_count = 0
+
+    for entry in subscriptions:
+        try:
+            expires_at = datetime.fromisoformat(entry.get("expires_at", ""))
+        except ValueError:
+            continue
+
+        if now <= expires_at <= threshold:
+            plan_label = "User" if entry.get("plan_type") == "user" else "Worker"
+            message = (
+                f"Your {plan_label} subscription will expire on "
+                f"{expires_at.date().isoformat()}. Please renew to avoid interruption."
+            )
+
+            await asyncio.gather(
+                asyncio.to_thread(_send_sms_message, entry.get("phone", ""), message),
+                asyncio.to_thread(
+                    _send_email_message,
+                    entry.get("email", ""),
+                    "Dial For Help Subscription Renewal Reminder",
+                    message,
+                ),
+            )
+
+            await _create_user_notification(
+                email=entry.get("email", ""),
+                phone=entry.get("phone", ""),
+                title="Subscription renewal reminder",
+                message=message,
+                category="subscription",
+                booking_id=None,
+            )
+            reminded_count += 1
+
+    return RenewalDispatchResponse(
+        reminded_count=reminded_count,
+        message="Renewal reminder dispatch completed",
+    )
 
 
 @api_router.get("/admin/bookings/{booking_id}/suggest-workers", response_model=List[WorkerSuggestion])
@@ -1173,6 +1350,18 @@ async def update_booking_status(
             )
             booking.notification_log = merged_logs
 
+            await _create_user_notification(
+                email=booking.email,
+                phone=booking.phone,
+                title="Worker assigned",
+                message=(
+                    f"{worker.get('full_name', 'Worker')} assigned. "
+                    f"Contact: {worker.get('phone', 'N/A')}"
+                ),
+                category="assignment",
+                booking_id=booking.id,
+            )
+
     event_name = f"Status changed to {payload.status}"
     notification_log = await _notify_booking_event(booking, event_name)
     if notification_log:
@@ -1189,6 +1378,15 @@ async def update_booking_status(
         )
         booking.notification_log = combined_log
         booking.updated_at = updated_at
+
+    await _create_user_notification(
+        email=booking.email,
+        phone=booking.phone,
+        title="Booking status updated",
+        message=f"Your booking status is now {payload.status}.",
+        category="status",
+        booking_id=booking.id,
+    )
 
     return booking
 

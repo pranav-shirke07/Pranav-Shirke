@@ -56,6 +56,11 @@ export const MainLayout = () => {
                 User Account
               </Button>
             </NavLink>
+            <NavLink to="/account/notifications" data-testid="nav-link-user-notifications">
+              <Button className="rounded-full px-5 py-2" variant="outline">
+                Notifications
+              </Button>
+            </NavLink>
           </nav>
         </div>
       </header>

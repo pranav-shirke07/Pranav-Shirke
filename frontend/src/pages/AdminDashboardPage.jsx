@@ -144,6 +144,16 @@ export default function AdminDashboardPage() {
     navigate("/admin");
   };
 
+  const dispatchRenewals = async () => {
+    try {
+      const result = await adminApi.dispatchRenewalReminders();
+      toast.success(`Renewal reminders sent: ${result.reminded_count}`);
+      await loadOverview();
+    } catch {
+      toast.error("Could not dispatch renewal reminders.");
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-stone-100 p-8" data-testid="admin-dashboard-loading">
@@ -345,7 +355,12 @@ export default function AdminDashboardPage() {
 
           <TabsContent value="subscriptions">
             <Card className="rounded-2xl border-stone-200 bg-white">
-              <CardContent className="p-0">
+              <CardContent className="space-y-4 p-4">
+                <div className="flex justify-end">
+                  <Button onClick={dispatchRenewals} data-testid="dispatch-renewal-reminders-button">
+                    Send Renewal Reminders
+                  </Button>
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
