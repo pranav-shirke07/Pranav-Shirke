@@ -86,6 +86,20 @@
   - Added 50 users, 60 workers, 200 bookings, 95 subscriptions, 60 contacts, 315 user notifications
   - Seeded records are distributed across services/statuses so admin and customer flows appear live immediately
   - Seeded user login password: `User@123`
+- Added phase-6 admin operations and analytics:
+  - One-click admin utilities: **Reset Demo** and **Reset + Reseed**
+  - Role-based **Demo Logins** listing in admin dashboard (admin, user, worker-reference)
+  - Advanced analytics cards for:
+    - Monthly bookings
+    - Monthly subscription revenue
+    - Monthly renewals due
+    - Assignment completion rate
+    - Active subscriptions and total subscription revenue
+  - Added backend APIs:
+    - `GET /api/admin/analytics`
+    - `GET /api/admin/demo-logins`
+    - `POST /api/admin/demo/reset`
+    - `POST /api/admin/demo/reset-reseed`
 
 ## Prioritized Backlog
 ### P0 (Next Critical)
